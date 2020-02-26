@@ -6,8 +6,7 @@ import os
 import sys
 import pickle
 import random
-
-#from tensorflow.python.ops import control_flow_ops
+from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.framework import ops
 
 class_num = 10
@@ -15,7 +14,7 @@ image_size = 32
 img_channels = 3
 iterations = 200
 batch_size = 250
-total_epoch = 16
+total_epoch = 200
 weight_decay = 0.0003
 dropout_rate = 0.5
 momentum_rate = 0.9
@@ -187,7 +186,7 @@ def data_augmentation(batch):
 
 def learning_rate_schedule(epoch_num):
     if epoch_num < 81:
-        return 0.5
+        return 0.1
     elif epoch_num < 121:
         return 0.01
     else:
@@ -222,22 +221,8 @@ def binarize(x):
         with g.gradient_override_map({"Sign": "Identity"}):
             #return tf.where(tf.greater(x,tf.reduce_mean(tf.abs(x))), 1+0*x,tf.where(tf.greater(x,-tf.reduce_mean(tf.abs(x))),0*x,-1+0*x))
             #return (tf.round(x*10000))/10000
-            return tf.sign(x)  
+            return tf.sign(x)
             #return x
-
-def binarize_out(x):
-    """
-    Clip and binarize tensor using the straight through estimator (STE) for the gradient.
-    """
-    g = tf.get_default_graph()
-
-    with ops.name_scope("binarized") as name:
-        #x=tf.clip_by_value(x,-1,1)
-        with g.gradient_override_map({"Sign": "Identity"}):
-            #return tf.where(tf.greater(x,tf.reduce_mean(tf.abs(x))), 1+0*x,tf.where(tf.greater(x,-tf.reduce_mean(tf.abs(x))),0*x,-1+0*x))
-            #return (tf.round(x*10000))/10000
-            return tf.sign(x)  
-            #return x            
 
 if __name__ == '__main__':
 
@@ -254,58 +239,45 @@ if __name__ == '__main__':
     # build_network
     
     W_conv1_1 = tf.get_variable('conv1_1', shape=[3, 3, 3, 128], initializer=tf.contrib.keras.initializers.he_normal())
-    #biases1_1 = tf.get_variable('biases1_1', dtype=tf.float32, initializer=tf.contrib.keras.initializers.he_normal())
-    biases1_1 = tf.Variable(tf.constant(0,shape=[128],dtype=tf.float32),trainable=True,name='biases1_1')
-    output = tf.clip_by_value(batch_norm(tf.nn.bias_add(conv2d(x, W_conv1_1), biases1_1)),-3,3)
-    output1_1_b = binarize_out(output)
+    output = tf.nn.relu(batch_norm(conv2d(x, W_conv1_1)))
+    
 
     W_conv1_2 = tf.get_variable('conv1_2', shape=[3, 3, 128, 128], initializer=tf.contrib.keras.initializers.he_normal())
     W_conv1_2_b = binarize(W_conv1_2)
-    biases1_2 = tf.Variable(tf.constant(0,shape=[128],dtype=tf.float32),trainable=True,name='biases1_2')
-    output = tf.clip_by_value(batch_norm(tf.nn.bias_add(conv2d(output1_1_b, W_conv1_2_b), biases1_2)),-3,3)
+    output = 40*tf.nn.relu(batch_norm(conv2d(output, W_conv1_2_b)))
     output = max_pool(output, 2, 2, "pool1")
-    output1_2_b = binarize_out(output)
     
 
     W_conv2_1 = tf.get_variable('conv2_1', shape=[3, 3, 128, 256], initializer=tf.contrib.keras.initializers.he_normal())
     W_conv2_1_b = binarize(W_conv2_1)
-    biases2_1 = tf.Variable(tf.constant(0,shape=[256],dtype=tf.float32),trainable=True,name='biases2_1')
-    output = tf.clip_by_value(batch_norm(tf.nn.bias_add(conv2d(output1_2_b, W_conv2_1_b), biases2_1)),-3,3)
-    output2_1_b = binarize_out(output)
+    output = 0.5*tf.nn.relu(batch_norm(conv2d(output, W_conv2_1_b)))
 
     W_conv2_2 = tf.get_variable('conv2_2', shape=[3, 3, 256, 256], initializer=tf.contrib.keras.initializers.he_normal())
     W_conv2_2_b = binarize(W_conv2_2)
-    biases2_2 = tf.Variable(tf.constant(0,shape=[256],dtype=tf.float32),trainable=True,name='biases2_2')
-    output = tf.clip_by_value(batch_norm(tf.nn.bias_add(conv2d(output2_1_b, W_conv2_2_b), biases2_2)),-3,3)
+    output = 107*tf.nn.relu(batch_norm(conv2d(output, W_conv2_2_b)))
     output = max_pool(output, 2, 2, "pool2")
-    output2_2_b = binarize_out(output)
 
     W_conv3_1 = tf.get_variable('conv3_1', shape=[3, 3, 256, 512], initializer=tf.contrib.keras.initializers.he_normal())
     W_conv3_1_b = binarize(W_conv3_1)
-    biases3_1 = tf.Variable(tf.constant(0,shape=[512],dtype=tf.float32),trainable=True,name='biases3_1')
-    output = tf.clip_by_value(batch_norm(tf.nn.bias_add(conv2d(output2_2_b, W_conv3_1_b), biases3_1)),-3,3)
-    output3_1_b = binarize_out(output)
-    print(output)
+    output = tf.nn.relu(batch_norm(conv2d(output,W_conv3_1_b)))
+
 
     W_conv3_2 = tf.get_variable('conv3_2', shape=[3, 3, 512, 512], initializer=tf.contrib.keras.initializers.he_normal())
     W_conv3_2_b = binarize(W_conv3_2)
-    biases3_2 = tf.Variable(tf.constant(0,shape=[512],dtype=tf.float32),trainable=True,name='biases3_2')
-    output = tf.clip_by_value(batch_norm(tf.nn.bias_add(conv2d(output3_1_b, W_conv3_2_b), biases3_2)),-3,3)
+    output = tf.nn.relu(batch_norm(conv2d(output, W_conv3_2_b)))
     output = max_pool(output, 2, 2, "pool3")
-    output3_2_b = binarize_out(output)
 
     # output = tf.contrib.layers.flatten(output)
-    output = tf.reshape(output3_2_b, [-1, 4*4*512])
+    output = tf.reshape(output, [-1, 4*4*512])
 
     W_fc1 = tf.get_variable('fc1', shape=[8192, 1024], initializer=tf.contrib.keras.initializers.he_normal())
     W_fc1_b = binarize(W_fc1)
-    output = tf.clip_by_value(batch_norm(tf.matmul(output, W_fc1_b)),-3,3)
-    output_fc1_b = binarize_out(output)
-    output = tf.nn.dropout(output_fc1_b, keep_prob)
+    output = tf.nn.relu(batch_norm(tf.matmul(output, W_fc1_b)))
+    output = tf.nn.dropout(output, keep_prob)
 
     W_fc3 = tf.get_variable('fc3', shape=[1024, 10], initializer=tf.contrib.keras.initializers.he_normal())
     W_fc3_b = binarize(W_fc3)
-    output = tf.clip_by_value(batch_norm(tf.matmul(output, W_fc3_b)),-3,3)
+    output = tf.nn.relu(batch_norm(tf.matmul(output, W_fc3_b)))
     # output  = tf.reshape(output,[-1,10])
 
     # loss function: cross_entropy
@@ -319,12 +291,12 @@ if __name__ == '__main__':
 
     # initial an saver to save model
     saver = tf.train.Saver()
-
+    ee = []
     with tf.Session() as sess:
 
         sess.run(tf.global_variables_initializer())
         summary_writer = tf.summary.FileWriter(log_save_path,sess.graph)
-        #saver.restore(sess, './path/base8.ckpt')
+        #saver.restore(sess, './path/base7.ckpt')
         # epoch = 164 
         # make sure [bath_size * iteration = data_set_number]
 
@@ -362,7 +334,7 @@ if __name__ == '__main__':
                                                tf.Summary.Value(tag="train_accuracy", simple_value=train_acc)])
 
                     val_acc, val_loss, test_summary = run_testing(sess, ep)
-
+                    ee.append(val_acc)
                     summary_writer.add_summary(train_summary, ep)
                     summary_writer.add_summary(test_summary, ep)
                     summary_writer.flush()
@@ -374,6 +346,7 @@ if __name__ == '__main__':
                     print("iteration: %d/%d, train_loss: %.4f, train_acc: %.4f"
                           % (it, iterations, train_loss / it, train_acc / it), end='\r')
 
-        save_path = saver.save(sess, model_save_path)
-        print("Model saved in file: %s" % save_path)  
+        #save_path = saver.save(sess, model_save_path)
+        #print("Model saved in file: %s" % save_path)  
         #saver.save(sess,save_path='./path/base8.ckpt')
+    print(ee)
